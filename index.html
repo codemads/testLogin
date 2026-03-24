@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almoço · Pousada</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --sand: #f5efe6;
+    --warm: #e8d9c5;
+    --terra: #c4813a;
+    --terra-dark: #a3652a;
+    --brown: #5c3d2e;
+    --brown-light: #7a5544;
+    --text: #2e1f14;
+    --muted: #8a7060;
+    --white: #fff9f3;
+    --danger: #c0392b;
+    --success: #2d7a4f;
+    --slot-full: #e5cfc7;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--sand);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 80% 10%, rgba(196,129,58,0.13) 0%, transparent 55%),
+      radial-gradient(ellipse at 10% 90%, rgba(92,61,46,0.09) 0%, transparent 50%);
+  }
+
+  /* ══════════════════════════════════════
+     LOADING OVERLAY
+  ══════════════════════════════════════ */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(245,239,230,0.92);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; backdrop-filter: blur(6px);
+    transition: opacity 0.3s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 3px solid var(--warm);
+    border-top-color: var(--terra);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ══════════════════════════════════════
+     AUTH SCREEN
+  ══════════════════════════════════════ */
+  #authScreen {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+
+  .auth-card {
+    background: var(--white);
+    border-radius: 28px;
+    padding: 48px 44px;
+    width: 100%; max-width: 420px;
+    box-shadow: 0 20px 60px rgba(92,61,46,0.14);
+    border: 1.5px solid var(--warm);
+    animation: slideUp 0.4s cubic-bezier(.22,1,.36,1);
+  }
+
+  @keyframes slideUp {
+    from { opacity:0; transform: translateY(24px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .auth-logo {
+    width: 64px; height: 64px;
+    background: var(--brown);
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    margin: 0 auto 24px;
+  }
+
+  .auth-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--brown);
+    margin-bottom: 4px;
+  }
+
+  .auth-subtitle {
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .auth-tabs {
+    display: flex;
+    background: var(--sand);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 28px;
+    gap: 4px;
+  }
+
+  .auth-tab {
+    flex: 1;
+    padding: 9px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .auth-tab.active {
+    background: var(--white);
+    color: var(--brown);
+    box-shadow: 0 2px 8px rgba(92,61,46,0.1);
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 13px 16px;
+    border: 1.5px solid var(--warm);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    background: var(--sand);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .form-group input:focus {
+    border-color: var(--terra);
+    box-shadow: 0 0 0 3px rgba(196,129,58,0.14);
+  }
+
+  .form-group input::placeholder { color: var(--muted); opacity: 0.55; }
+
+  .auth-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--terra);
+    color: white;
+    border: none;
+    border-radius: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .auth-btn:hover { background: var(--terra-dark); transform: translateY(-1px); }
+  .auth-btn:disabled { background: var(--warm); color: var(--muted); cursor: not-allowed; transform: none; }
+
+  .auth-error {
+    background: rgba(192,57,43,0.08);
+    border: 1px solid rgba(192,57,43,0.25);
+    color: var(--danger);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 0.83rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .auth-error.show { display: block; animation: fadeIn 0.25s ease; }
+
+  .auth-success {
+    background: rgba(45,122,79,0.08);
+    border: 1px solid rgba(45,122,79,0.25);
+    color: var(--success);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 0.83rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .auth-success.show { display: block; animation: fadeIn 0.25s ease; }
+
+  /* ══════════════════════════════════════
+     APP SCREEN
+  ══════════════════════════════════════ */
+  #appScreen { display: none; }
+
+  header {
+    background: var(--brown);
+    color: var(--white);
+    padding: 20px 32px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 4px 24px rgba(46,31,20,0.18);
+    position: relative; overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 30px,
+      rgba(255,255,255,0.02) 30px, rgba(255,255,255,0.02) 31px
+    );
+  }
+
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: var(--terra);
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    position: relative; z-index: 1;
+  }
+
+  .header-info { position: relative; z-index: 1; }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.45rem;
+    font-weight: 700;
+  }
+
+  header p { font-size: 0.78rem; opacity: 0.65; margin-top: 1px; font-weight: 300; }
+
+  .header-right {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 12px;
+    position: relative; z-index: 1;
+  }
+
+  .user-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.9);
+    max-width: 200px;
+  }
+
+  .user-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .realtime-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.73rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+  }
+
+  .realtime-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.5; transform:scale(0.85); }
+  }
+
+  .logout-btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.85);
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .logout-btn:hover { background: rgba(255,255,255,0.2); }
+
+  main { max-width: 820px; margin: 0 auto; padding: 36px 24px 80px; }
+
+  /* Controls row */
+  .controls-row {
+    display: flex; gap: 16px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+  }
+
+  .control-card {
+    background: var(--white);
+    border-radius: 18px;
+    padding: 20px 24px;
+    border: 1.5px solid var(--warm);
+    box-shadow: 0 2px 14px rgba(92,61,46,0.07);
+    flex: 1; min-width: 200px;
+  }
+
+  .control-card label {
+    display: block;
+    font-size: 0.73rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .date-tabs { display: flex; gap: 8px; }
+
+  .date-tab {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: 10px;
+    border: 1.5px solid var(--warm);
+    background: var(--sand);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-align: center;
+    transition: all 0.2s;
+    line-height: 1.35;
+  }
+
+  .date-tab:hover { border-color: var(--terra); color: var(--terra); }
+  .date-tab.active { background: var(--terra); border-color: var(--terra); color: white; }
+  .date-tab .tab-day { font-size: 0.68rem; opacity: 0.8; display: block; }
+  .date-tab .tab-date { font-size: 0.88rem; font-weight: 600; display: block; }
+
+  /* Slots */
+  .section-header { margin-bottom: 20px; }
+
+  .slots-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--brown);
+    margin-bottom: 4px;
+  }
+
+  .slots-subtitle { font-size: 0.79rem; color: var(--muted); }
+
+  .slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 18px;
+  }
+
+  .slot-card {
+    background: var(--white);
+    border-radius: 20px;
+    padding: 22px;
+    border: 2px solid var(--warm);
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+  }
+
+  .slot-card:not(.past):hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(92,61,46,0.12); }
+  .slot-card.full { background: #faf5f2; border-color: var(--slot-full); }
+  .slot-card.my-slot { border-color: var(--terra); background: #fff8f0; }
+
+  .slot-card.past { background: #f7f3ef; border-color: #e0d8d0; opacity: 0.58; }
+  .slot-card.past .slot-time { color: var(--muted); }
+
+  .past-badge, .my-badge {
+    position: absolute; top: 14px; right: 14px;
+    font-size: 0.68rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  .past-badge { background: var(--muted); color: white; }
+  .my-badge { background: var(--terra); color: white; }
+
+  .slot-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.9rem; font-weight: 700;
+    color: var(--brown); line-height: 1; margin-bottom: 3px;
+  }
+
+  .slot-label {
+    font-size: 0.72rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-bottom: 14px;
+  }
+
+  .capacity-bar {
+    height: 5px; background: var(--warm);
+    border-radius: 99px; overflow: hidden; margin-bottom: 10px;
+  }
+
+  .capacity-fill {
+    height: 100%; border-radius: 99px;
+    background: var(--terra); transition: width 0.4s ease;
+  }
+
+  .slot-card.full .capacity-fill,
+  .slot-card.past .capacity-fill { background: var(--muted); }
+
+  .capacity-text { font-size: 0.75rem; color: var(--muted); margin-bottom: 14px; }
+
+  .names-list {
+    display: flex; flex-direction: column;
+    gap: 5px; margin-bottom: 16px; min-height: 44px;
+  }
+
+  .name-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--sand); border-radius: 8px;
+    padding: 5px 10px; font-size: 0.8rem;
+    color: var(--brown-light);
+    animation: fadeIn 0.3s ease;
+  }
+
+  .name-chip.own { background: rgba(196,129,58,0.12); color: var(--terra-dark); font-weight: 500; }
+
+  .name-chip-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--terra); flex-shrink: 0;
+  }
+
+  .name-chip.own .name-chip-dot { background: var(--terra-dark); }
+
+  .name-chip-remove {
+    margin-left: auto; background: none; border: none;
+    cursor: pointer; color: var(--muted);
+    font-size: 0.9rem; padding: 0 2px; line-height: 1;
+    transition: color 0.15s;
+  }
+
+  .name-chip-remove:hover { color: var(--danger); }
+
+  .slot-btn {
+    width: 100%; padding: 10px; border-radius: 11px; border: none;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    font-size: 0.84rem; font-weight: 500;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .slot-btn.book { background: var(--terra); color: white; }
+  .slot-btn.book:hover { background: var(--terra-dark); transform: translateY(-1px); }
+
+  .slot-btn.cancel {
+    background: transparent; color: var(--danger);
+    border: 1.5px solid var(--danger);
+  }
+
+  .slot-btn.cancel:hover { background: rgba(192,57,43,0.06); }
+
+  .slot-btn:disabled {
+    background: var(--warm); color: var(--muted);
+    cursor: not-allowed; transform: none; border: none;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--brown); color: var(--white);
+    padding: 13px 22px; border-radius: 13px;
+    font-size: 0.87rem; font-weight: 500;
+    box-shadow: 0 8px 32px rgba(46,31,20,0.22);
+    transition: transform 0.35s cubic-bezier(.22,1,.36,1), opacity 0.3s;
+    opacity: 0; z-index: 999; white-space: nowrap;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.error { background: var(--danger); }
+  .toast.success { background: var(--success); }
+
+  @keyframes fadeIn {
+    from { opacity:0; transform:translateY(-4px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  .empty-chip { font-size: 0.77rem; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+  /* Responsive */
+  @media (max-width: 520px) {
+    header { padding: 16px 20px; }
+    .auth-card { padding: 36px 24px; }
+    .user-chip { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+</div>
+
+<!-- ══ AUTH SCREEN ══════════════════════════════════════ -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">🍽️</div>
+    <div class="auth-title">Almoço · Pousada</div>
+    <div class="auth-subtitle">Agendamento de horário para funcionários</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Entrar</button>
+      <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">Criar conta</button>
+    </div>
+
+    <div id="authError" class="auth-error"></div>
+    <div id="authSuccess" class="auth-success"></div>
+
+    <!-- Login form -->
+    <div id="formLogin">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- Register form -->
+    <div id="formRegister" style="display:none">
+      <div class="form-group">
+        <label>Nome completo</label>
+        <input type="text" id="regName" placeholder="Seu nome" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="regEmail" placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Confirmar senha</label>
+        <input type="password" id="regPasswordConfirm" placeholder="Repita a senha"
+          onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <button class="auth-btn" id="registerBtn" onclick="doRegister()">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP SCREEN ══════════════════════════════════════ -->
+<div id="appScreen">
+  <header>
+    <div class="logo-icon">🍽️</div>
+    <div class="header-info">
+      <h1>Almoço · Pousada</h1>
+      <p>Agendamento de horário</p>
+    </div>
+    <div class="header-right">
+      <div class="realtime-badge">
+        <div class="realtime-dot"></div>
+        Tempo real
+      </div>
+      <div class="user-chip">
+        <span>👤</span>
+        <span id="userEmailDisplay">—</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="controls-row">
+      <div class="control-card">
+        <label>Data do agendamento</label>
+        <div class="date-tabs" id="dateTabs"></div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="slots-title" id="slotsTitle">Escolha seu horário</div>
+      <div class="slots-subtitle">Máximo de 3 pessoas por horário • Horários encerrados não estão disponíveis</div>
+    </div>
+
+    <div class="slots-grid" id="slotsGrid"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SUPABASE_URL = 'https://ozdozxzujbyigoyxsgsy.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96ZG96eHp1amJ5aWdveXhzZ3N5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTAyNzgsImV4cCI6MjA4OTkyNjI3OH0.x5xevbDbWRZ7s_2i1dx3LKZzx75GgV2YuIZdiMvlIzY';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const HOURS = [12, 13, 14, 15, 16];
+  const MAX_PER_SLOT = 3;
+
+  let currentUser = null;
+  let slots = {};
+  let isBusy = false;
+  let selectedDate = localDateStr(0);
+  let realtimeChannel = null;
+
+  HOURS.forEach(h => slots[h] = []);
+
+  // ── Date helpers ───────────────────────────────────────────────
+  function localDateStr(offsetDays = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function currentHour() { return new Date().getHours(); }
+  function isToday(dateStr) { return dateStr === localDateStr(0); }
+  function isPastHour(hour, dateStr) { return isToday(dateStr) && currentHour() >= hour; }
+
+  // ── Auth tab switch ────────────────────────────────────────────
+  function switchTab(tab) {
+    clearAuthMessages();
+    document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+    document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+    document.getElementById('formLogin').style.display = tab === 'login' ? 'block' : 'none';
+    document.getElementById('formRegister').style.display = tab === 'register' ? 'block' : 'none';
+  }
+
+  function clearAuthMessages() {
+    document.getElementById('authError').className = 'auth-error';
+    document.getElementById('authSuccess').className = 'auth-success';
+  }
+
+  function showAuthError(msg) {
+    const el = document.getElementById('authError');
+    el.textContent = msg;
+    el.className = 'auth-error show';
+    document.getElementById('authSuccess').className = 'auth-success';
+  }
+
+  function showAuthSuccess(msg) {
+    const el = document.getElementById('authSuccess');
+    el.textContent = msg;
+    el.className = 'auth-success show';
+    document.getElementById('authError').className = 'auth-error';
+  }
+
+  // ── Login ──────────────────────────────────────────────────────
+  async function doLogin() {
+    clearAuthMessages();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) { showAuthError('Preencha e-mail e senha.'); return; }
+
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Entrando…';
+
+    const { error } = await db.auth.signInWithPassword({ email, password });
+
+    btn.disabled = false; btn.textContent = 'Entrar';
+
+    if (error) {
+      const msg = error.message.includes('Invalid login')
+        ? 'E-mail ou senha incorretos.'
+        : error.message.includes('Email not confirmed')
+        ? 'Confirme seu e-mail antes de entrar.'
+        : 'Erro ao entrar. Tente novamente.';
+      showAuthError(msg);
+    }
+    // onAuthStateChange vai abrir o app
+  }
+
+  // ── Register ───────────────────────────────────────────────────
+  async function doRegister() {
+    clearAuthMessages();
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regPasswordConfirm').value;
+
+    if (!name) { showAuthError('Informe seu nome.'); return; }
+    if (!email) { showAuthError('Informe o e-mail.'); return; }
+    if (password.length < 6) { showAuthError('A senha deve ter pelo menos 6 caracteres.'); return; }
+    if (password !== confirm) { showAuthError('As senhas não coincidem.'); return; }
+
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true; btn.textContent = 'Criando conta…';
+
+    const { error } = await db.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } }
+    });
+
+    btn.disabled = false; btn.textContent = 'Criar conta';
+
+    if (error) {
+      const msg = error.message.includes('already registered')
+        ? 'Este e-mail já está cadastrado.'
+        : 'Erro ao criar conta. Tente novamente.';
+      showAuthError(msg);
+    } else {
+      showAuthSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro, depois faça login.');
+      switchTab('login');
+      document.getElementById('loginEmail').value = email;
+    }
+  }
+
+  // ── Logout ─────────────────────────────────────────────────────
+  async function doLogout() {
+    await db.auth.signOut();
+  }
+
+  // ── Auth state listener ────────────────────────────────────────
+  db.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      openApp();
+    } else {
+      currentUser = null;
+      openAuth();
+    }
+  });
+
+  function openApp() {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+
+    // exibir email/nome no header
+    const name = currentUser.user_metadata?.full_name || currentUser.email;
+    document.getElementById('userEmailDisplay').textContent = name;
+
+    buildDateTabs();
+    loadSlots();
+    subscribeRealtime();
+  }
+
+  function openAuth() {
+    document.getElementById('appScreen').style.display = 'none';
+    document.getElementById('authScreen').style.display = 'flex';
+    if (realtimeChannel) { db.removeChannel(realtimeChannel); realtimeChannel = null; }
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  }
+
+  // ── Date tabs ──────────────────────────────────────────────────
+  function buildDateTabs() {
+    const container = document.getElementById('dateTabs');
+    container.innerHTML = '';
+    [{ offset:0, label:'Hoje' }, { offset:1, label:'Amanhã' }].forEach(({ offset, label }) => {
+      const dateStr = localDateStr(offset);
+      const d = new Date(); d.setDate(d.getDate() + offset);
+      const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
+      const dateF = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+      const tab = document.createElement('button');
+      tab.className = 'date-tab' + (dateStr === selectedDate ? ' active' : '');
+      tab.innerHTML = `<span class="tab-day">${label} · ${dayName}</span><span class="tab-date">${dateF}</span>`;
+      tab.onclick = () => { selectedDate = dateStr; buildDateTabs(); loadSlots(); };
+      container.appendChild(tab);
+    });
+  }
+
+  // ── Load slots ─────────────────────────────────────────────────
+  async function loadSlots() {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    const { data, error } = await db
+      .from('agendamentos')
+      .select('*')
+      .eq('data', selectedDate)
+      .order('created_at');
+
+    if (error) {
+      showToast('Erro ao carregar dados.', 'error');
+      document.getElementById('loadingOverlay').classList.add('hidden');
+      return;
+    }
+
+    HOURS.forEach(h => slots[h] = []);
+    (data || []).forEach(row => { if (slots[row.horario]) slots[row.horario].push(row); });
+
+    const d = new Date(selectedDate + 'T12:00:00');
+    const dateLabel = d.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+    document.getElementById('slotsTitle').textContent =
+      isToday(selectedDate) ? `Hoje — ${dateLabel}` : `Amanhã — ${dateLabel}`;
+
+    render();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  }
+
+  // ── Realtime ───────────────────────────────────────────────────
+  function subscribeRealtime() {
+    if (realtimeChannel) db.removeChannel(realtimeChannel);
+    realtimeChannel = db.channel('agendamentos_rt')
+      .on('postgres_changes', { event:'*', schema:'public', table:'agendamentos' }, () => loadSlots())
+      .subscribe();
+  }
+
+  // ── Book ───────────────────────────────────────────────────────
+  async function book(hour) {
+    if (isBusy || !currentUser) return;
+    if (isPastHour(hour, selectedDate)) { showToast('Este horário já passou.', 'error'); return; }
+    if (findMyBookedHour() !== null) { showToast('Você já possui um horário nesta data.', 'error'); return; }
+    if ((slots[hour] || []).length >= MAX_PER_SLOT) { showToast('Horário lotado!', 'error'); return; }
+
+    isBusy = true;
+    const btn = document.querySelector(`[data-hour="${hour}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Aguarde…'; }
+
+    const nome = currentUser.user_metadata?.full_name || currentUser.email;
+
+    const { error } = await db.from('agendamentos').insert({
+      nome,
+      horario: hour,
+      data: selectedDate,
+      user_id: currentUser.id
+    });
+
+    isBusy = false;
+
+    if (error) {
+      const msg = (error.message||'').includes('Horário lotado') ? 'Horário lotado! Escolha outro.' : 'Erro ao agendar.';
+      showToast(msg, 'error');
+      await loadSlots();
+    } else {
+      showToast(`Agendado para as ${hour}h! 🎉`, 'success');
+      await loadSlots();
+    }
+  }
+
+  // ── Cancel ─────────────────────────────────────────────────────
+  async function cancelBooking(hour) {
+    if (isBusy || !currentUser) return;
+    const entry = (slots[hour] || []).find(e => e.user_id === currentUser.id);
+    if (!entry) return;
+
+    isBusy = true;
+    const { error } = await db.from('agendamentos').delete().eq('id', entry.id);
+    isBusy = false;
+
+    if (error) { showToast('Erro ao cancelar.', 'error'); }
+    else { showToast('Agendamento cancelado.', ''); await loadSlots(); }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function findMyBookedHour() {
+    if (!currentUser) return null;
+    for (const h of HOURS) {
+      if ((slots[h] || []).some(e => e.user_id === currentUser.id)) return h;
+    }
+    return null;
+  }
+
+  function escapeHTML(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function render() {
+    const grid = document.getElementById('slotsGrid');
+    grid.innerHTML = '';
+    const myBookedHour = findMyBookedHour();
+
+    HOURS.forEach(h => {
+      const list = slots[h] || [];
+      const count = list.length;
+      const full = count >= MAX_PER_SLOT;
+      const isMySlot = myBookedHour === h;
+      const past = isPastHour(h, selectedDate);
+      const fillPct = (count / MAX_PER_SLOT) * 100;
+
+      const namesHTML = list.length === 0
+        ? `<div class="empty-chip">${past ? 'Sem agendamentos' : 'Nenhum agendamento ainda'}</div>`
+        : list.map(entry => {
+            const own = currentUser && entry.user_id === currentUser.id;
+            const removeBtn = (own && !past)
+              ? `<button class="name-chip-remove" onclick="cancelBooking(${h})" title="Cancelar">✕</button>`
+              : '';
+            return `<div class="name-chip${own?' own':''}">
+              <span class="name-chip-dot"></span>
+              <span>${escapeHTML(entry.nome)}</span>
+              ${removeBtn}
+            </div>`;
+          }).join('');
+
+      let btnHTML = '';
+      if (past) {
+        btnHTML = `<button class="slot-btn" disabled>Horário encerrado</button>`;
+      } else if (isMySlot) {
+        btnHTML = `<button class="slot-btn cancel" onclick="cancelBooking(${h})">Cancelar meu agendamento</button>`;
+      } else if (full) {
+        btnHTML = `<button class="slot-btn" disabled>Horário lotado</button>`;
+      } else if (myBookedHour !== null) {
+        btnHTML = `<button class="slot-btn" disabled>Você já tem um horário</button>`;
+      } else {
+        btnHTML = `<button class="slot-btn book" data-hour="${h}" onclick="book(${h})">Agendar este horário</button>`;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'slot-card'
+        + (past ? ' past' : '')
+        + (!past && full && !isMySlot ? ' full' : '')
+        + (!past && isMySlot ? ' my-slot' : '');
+
+      card.innerHTML = `
+        ${past ? '<div class="past-badge">Encerrado</div>' : ''}
+        ${!past && isMySlot ? '<div class="my-badge">✓ Seu horário</div>' : ''}
+        <div class="slot-time">${h}:00</div>
+        <div class="slot-label">horas</div>
+        <div class="capacity-bar"><div class="capacity-fill" style="width:${fillPct}%"></div></div>
+        <div class="capacity-text">${count} de ${MAX_PER_SLOT} vagas preenchidas</div>
+        <div class="names-list">${namesHTML}</div>
+        ${btnHTML}
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, type='') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (type ? ' '+type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className='toast'; }, 3200);
+  }
+
+  // ── Init ───────────────────────────────────────────────────────
+  // onAuthStateChange já cuida do estado inicial, mas escondemos loading após 3s de segurança
+  setTimeout(() => document.getElementById('loadingOverlay').classList.add('hidden'), 3000);
+
+  // Atualiza slots a cada minuto (expirar horários automaticamente)
+  setInterval(() => { if (currentUser && isToday(selectedDate)) render(); }, 60000);
+</script>
+</body>
+</html>
